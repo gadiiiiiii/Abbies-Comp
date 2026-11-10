@@ -1,4 +1,4 @@
-"""A multi-song study built on the original Tonnetz/DTW implementation."""
+"""A multi-song study built on the uploaded weighted Tonnetz implementation."""
 from itertools import combinations
 from statistics import mean
 from hashlib import sha256
@@ -6,8 +6,8 @@ from pathlib import Path
 import json
 from curated_catalog import catalog_entry
 
-from tonnetz import Song, dtw_distance, transposition_invariant_distance, transpose_progression
-from explanations import graph_data, song_data, progression_routes, route_data
+from tonnetz import Song, progression_distance, transposition_invariant_distance, transpose_progression, weighted_similarity
+from explanations import graph_data, song_data, progression_routes, route_data, score_components
 
 
 def parse_study(data):
@@ -45,6 +45,8 @@ def parse_study(data):
             raise ValueError("Select each song only once.")
         seen.add(key)
         songs.append(song)
+    if len({len(song.chords) for song in songs}) != 1:
+        raise ValueError("Select progressions with the same number of chords. This model compares positions directly.")
     return songs, transpose
 
 
@@ -58,6 +60,8 @@ class DistanceTable:
 
 
 def study_data(engine, songs, transpose=True):
+    if not 2 <= len(songs) <= 5 or len({len(song.chords) for song in songs}) != 1:
+        raise ValueError("Select 2–5 progressions with the same number of chords.")
     graph, table = engine.graph, DistanceTable(engine.graph)
     n = len(songs)
     distances = [[0.0] * n for _ in songs]
@@ -69,17 +73,16 @@ def study_data(engine, songs, transpose=True):
             if transpose:
                 distance, shift, path = transposition_invariant_distance(table, a.chords, b.chords)
             else:
-                distance, path = dtw_distance(table, a.chords, b.chords)
+                distance, path = progression_distance(table, a.chords, b.chords)
                 shift = 0
             shifted = transpose_progression(b.chords, shift)
             costs = [[table.distance(x, y) for y in shifted] for x in a.chords]
             cumulative = [[0] * len(shifted) for _ in a.chords]
             for row in range(len(a.chords)):
                 for col in range(len(shifted)):
-                    prior = [cumulative[row-1][col] if row else float('inf'),
-                             cumulative[row][col-1] if col else float('inf'),
-                             cumulative[row-1][col-1] if row and col else float('inf')]
-                    cumulative[row][col] = costs[row][col] + (0 if row == col == 0 else min(prior))
+                    # Only matching positions belong to this model's comparison.
+                    cumulative[row][col] = (costs[row][col] + (cumulative[row-1][col-1] if row else 0)
+                                            if row == col else None)
             alignment = [{"i": row, "j": col, **route_data(graph, a.chords[row], shifted[col])}
                          for row, col in path]
             distances[i][j] = distance
@@ -89,7 +92,9 @@ def study_data(engine, songs, transpose=True):
                                 "costs": costs, "cumulative": cumulative,
                                 "path": path, "alignment": alignment,
                                 "total_cost": sum(costs[row][col] for row, col in path),
-                                "path_length": len(path), "similarity": 1 / (1 + distance)})
+                                "path_length": len(path), "similarity": 1 / (1 + distance),
+                                "weighted_similarity": weighted_similarity(graph, a.chords, shifted),
+                                "components": score_components(graph, a.chords, shifted)})
     # Align each song to the first selected song to create one explicit common frame.
     aligned, shifts = [songs[0]], [0]
     for j, song in enumerate(songs[1:], 1):
@@ -110,7 +115,7 @@ def study_data(engine, songs, transpose=True):
         if hasattr(original, 'provenance'):
             song_reports[-1]['provenance'] = original.provenance
     exact_pairs = sum(distances[i][j] == 0 and distances[j][i] == 0 for i, j in combinations(range(n), 2))
-    closest = min(comparisons, key=lambda p: p['distance'])
+    closest = max(comparisons, key=lambda p: p['weighted_similarity'])
     inputs = {"songs": [{"title": s.title, "progression": " ".join(c.name for c in s.chords)}
                         for s in songs], "transpose": transpose}
     for song, entry in zip(songs, inputs['songs']):
@@ -126,7 +131,7 @@ def study_data(engine, songs, transpose=True):
     return {"schema": "tonnetz-lab-study/v1", "inputs": inputs,
             "reproducibility": {"input_sha256": sha256(canonical_inputs.encode()).hexdigest(),
                                 "source_sha256": source_hashes,
-                                "method": "Minimum-total-cost P/L/R DTW, normalized by selected path length",
+                                "method": "Position-by-position P/L/R; minimum-distance transposition; weighted similarity 0.40/0.30/0.20/0.10",
                                 "replay": "POST the inputs object to /api/analyze; compare source hashes before comparing results."},
             "songs": song_reports, "graph": graph_data(graph), "distances": distances,
             "comparisons": comparisons, "transpose": transpose,
@@ -138,7 +143,8 @@ def study_data(engine, songs, transpose=True):
             "limitations": [
                 "This describes shared harmonic structure among the songs you selected. It does not establish why you like them.",
                 "The model uses major/minor triads and chord order. Melody, rhythm, lyrics, timbre, and context are not modeled.",
-                "DTW minimizes total path cost, then normalizes by that path's length. Tied paths can yield direction-dependent scores; this is not asserted to be a metric on songs.",
-                "A zero cost can also arise from repeated chords stretched by DTW. It does not prove the original songs are identical.",
+                "Progressions must have equal lengths. Chords are compared at matching positions, with no warping or truncation.",
+                "Rank by 40% chord content, 30% transformation sequence, 20% trajectory and 10% compactness. Transposition minimizes average distance, not the weighted score.",
+                "Transformation labels describe direct neighbors only; non-neighbor transitions share the same dash label, as in the uploaded code.",
                 "Network positions are fixed illustrative coordinates. Edge counts, not Euclidean distances or cluster shapes, define graph distance.",
                 "Transition routes are one shortest P/L/R route; shortest routes need not be unique."]}

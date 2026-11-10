@@ -1,3 +1,5 @@
+> Historical notes: the current engine uses the uploaded equal-length, four-weight model. See README.md for current scoring.
+
 # Mixtape staged upgrades
 
 ## Checked stage — obsolete analysis failures (12 October 2026)

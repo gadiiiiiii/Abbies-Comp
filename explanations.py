@@ -1,5 +1,6 @@
 """Explain the engine's chosen paths without changing its scoring."""
-from tonnetz import Song, transpose_progression
+from tonnetz import (Song, TonnetzRecommender, transpose_progression, chord_content_similarity,
+                     transformation_similarity, trajectory_similarity, compactness_similarity)
 
 OPERATION_NAMES = {"P": "parallel", "L": "leading-tone exchange", "R": "relative"}
 
@@ -34,7 +35,17 @@ def graph_data(graph):
     }
 
 
+def score_components(graph, reference, candidate):
+    return {"chord_content": chord_content_similarity(reference, candidate),
+            "transformation": transformation_similarity(graph, reference, candidate),
+            "trajectory": trajectory_similarity(graph, reference, candidate),
+            "compactness": compactness_similarity(graph, reference, candidate)}
+
+
 def recommendation_data(engine, target, transpose=True):
+    # The uploaded algorithm compares equal-length progressions only.
+    compatible = [song for song in engine.songs if len(song.chords) == len(target.chords)]
+    engine = TonnetzRecommender(compatible)
     results = []
     for result in engine.recommend(target, top_k=8, transpose_invariant=transpose):
         song = result["song"]
@@ -48,6 +59,8 @@ def recommendation_data(engine, target, transpose=True):
                             "the remaining pairs are connected by P/L/R moves.")
         results.append({**song_data(song), "similarity": result["similarity"],
                         "distance": result["distance"], "shift": result["shift"],
+                        "weighted_similarity": result["weighted_similarity"],
+                        "components": score_components(engine.graph, target.chords, aligned.chords),
                         "aligned": song_data(aligned), "path": result["path"],
                         "alignment": pairs, "explanation": explanation,
                         "transitions": progression_routes(engine.graph, aligned.chords)})
@@ -55,5 +68,8 @@ def recommendation_data(engine, target, transpose=True):
                        "transitions": progression_routes(engine.graph, target.chords)},
             "results": results, "graph": graph_data(engine.graph),
             "operation_names": OPERATION_NAMES,
-            "scoring": "Average P/L/R cost along the minimum-total-cost DTW alignment; "
-                       "similarity = 1 / (1 + distance). This is not a probability."}
+            "scoring": "Position-by-position P/L/R comparison. Rank by 40% chord content, "
+                       "30% transformation sequence, 20% trajectory and 10% compactness. "
+                       "Choose transposition by lowest average P/L/R distance. Not a probability.",
+            "message": ("" if results else "No example has this chord count. Examples contain 4 chords. "
+                        "Use Study to compare your own equal-length progressions.")}

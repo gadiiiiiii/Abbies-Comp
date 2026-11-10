@@ -1,9 +1,9 @@
-"""Regression fixtures reviewed against the original Downloads prototype."""
+"""Regression fixtures for the user-supplied weighted prototype."""
 import unittest
 
 from tonnetz import (Chord, SAMPLE_SONGS, TonnetzChordGraph, TonnetzRecommender,
-                     dtw_distance, parse_chord, transform, transpose_progression,
-                     transposition_invariant_distance)
+                     progression_distance, parse_chord, transform, transpose_progression,
+                     transposition_invariant_distance, weighted_similarity)
 
 
 class EngineTests(unittest.TestCase):
@@ -34,12 +34,16 @@ class EngineTests(unittest.TestCase):
             for (previous, _), (chord, operation) in zip(route, route[1:]):
                 self.assertEqual(transform(previous, operation), chord)
 
-    def test_dtw_hand_checked_cost_and_repeated_chords(self):
+    def test_position_comparison_and_equal_length_rule(self):
         c, am = parse_chord("C"), parse_chord("Am")
-        self.assertEqual(dtw_distance(self.graph, [c], [am]), (1.0, [(0, 0)]))
-        self.assertEqual(dtw_distance(self.graph, [c], [c, c]), (0.0, [(0, 0), (0, 1)]))
+        self.assertEqual(progression_distance(self.graph, [c], [am]), (1.0, [(0, 0)]))
         with self.assertRaises(ValueError):
-            dtw_distance(self.graph, [], [c])
+            progression_distance(self.graph, [c], [c, c])
+        with self.assertRaises(ValueError):
+            progression_distance(self.graph, [], [c])
+        # Disjoint single-chord sets: 0*.4 + 1*.3 + .5*.2 + 1*.1 = .5.
+        self.assertAlmostEqual(weighted_similarity(self.graph, [c], [am]), .5)
+        self.assertAlmostEqual(weighted_similarity(self.graph, [c], [c]), 1)
 
     def test_transposition_preserves_equivalence(self):
         original = SAMPLE_SONGS[0].chords
@@ -58,26 +62,28 @@ class EngineTests(unittest.TestCase):
                 parse_chord(symbol)
 
     def test_all_sample_rankings_and_transpositions(self):
-        # Each tuple is (ranked title suffixes, distances, best semitone shifts).
+        # Intentional scoring migration: fixtures checked against the uploaded source.
+        # Each tuple is (ranked title suffixes, weighted scores, semitone shifts).
         fixtures = [
-            ("CDEHBFG", [0, 0, 0, 0, .4, .6, 1.2], [7, 6, 5, 9, 0, 0, 0]),
-            ("ACDEHFG", [.4, .4, .4, .4, .4, 1, 1.2], [0, 7, 6, 5, 9, 0, 0]),
-            ("ADEHBFG", [0, 0, 0, 0, .4, .6, 1.2], [5, 11, 10, 2, 5, 5, 5]),
-            ("ACEHBFG", [0, 0, 0, 0, .4, .6, 1.2], [6, 1, 11, 3, 6, 6, 6]),
-            ("ACDHBFG", [0, 0, 0, 0, .4, .6, 1.2], [7, 2, 1, 4, 7, 7, 0]),
-            ("ACDEHBG", [.6, .6, .6, .6, .6, 1, 1.2], [0, 7, 6, 5, 9, 0, 5]),
-            ("ABCDEFH", [1.2] * 7, [0, 0, 2, 1, 0, 7, 4]),
-            ("ACDEBFG", [0, 0, 0, 0, .4, .6, 1.2], [3, 10, 9, 8, 3, 3, 3]),
+            ("CDEHFBG", [1, 1, 1, 1, .675, .53333333, .31333333], [7, 6, 5, 9, 0, 0, 5]),
+            ("FACDEHG", [.67, .53333333, .53333333, .53333333, .53333333, .53333333, .48], [0, 0, 7, 6, 5, 9, 0]),
+            ("ADEHFBG", [1, 1, 1, 1, .675, .53333333, .31333333], [5, 11, 10, 2, 5, 5, 10]),
+            ("ACEHFBG", [1, 1, 1, 1, .675, .53333333, .31333333], [6, 1, 11, 3, 6, 6, 11]),
+            ("ACDHFBG", [1, 1, 1, 1, .675, .53333333, .31333333], [7, 2, 1, 4, 7, 7, 0]),
+            ("ACDEHBG", [.675, .675, .675, .675, .675, .67, .29880952], [0, 7, 6, 5, 9, 0, 2]),
+            ("BACDEHF", [.48, .31333333, .31333333, .31333333, .31333333, .31333333, .29880952], [0, 7, 2, 1, 0, 4, 2]),
+            ("ACDEFBG", [1, 1, 1, 1, .675, .53333333, .31333333], [3, 10, 9, 8, 3, 3, 8]),
         ]
         recommender = TonnetzRecommender(SAMPLE_SONGS)
-        for song, (titles, distances, shifts) in zip(SAMPLE_SONGS, fixtures):
+        for song, (titles, scores, shifts) in zip(SAMPLE_SONGS, fixtures):
             with self.subTest(song=song.title):
                 results = recommender.recommend(song, top_k=7)
                 self.assertEqual([r["song"].title for r in results], ["Song " + t for t in titles])
                 self.assertEqual([r["shift"] for r in results], shifts)
-                for result, distance in zip(results, distances):
-                    self.assertAlmostEqual(result["distance"], distance)
-                    self.assertAlmostEqual(result["similarity"], 1 / (1 + distance))
+                for result, score in zip(results, scores):
+                    self.assertAlmostEqual(result["weighted_similarity"], score)
+                    self.assertAlmostEqual(result["similarity"], 1 / (1 + result["distance"]))
+                    self.assertEqual(result["path"], [(i, i) for i in range(4)])
 
 
 if __name__ == "__main__":

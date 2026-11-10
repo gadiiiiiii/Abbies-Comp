@@ -54,7 +54,7 @@ code{overflow-wrap:anywhere;font-size:12px}p,li{overflow-wrap:anywhere}.note{bor
 @media print{body{margin:0;max-width:none;font-size:11pt}h2,h3{break-after:avoid}tr{break-inside:avoid}thead{display:table-header-group}}
 </style></head><body><h1 id="top" tabindex="-1">Tonnetz Lab</h1><p>Harmonic structure study · Mathematics × Computer Science</p>
 <p class="note">This report describes harmonic similarities in selected progressions. It does not establish why a listener likes them. Use the companion JSON export for reproducible machine-readable results.</p>''']
-    sections = [('inputs', 'Study inputs'), ('distances', 'Pairwise distances'),
+    sections = [('inputs', 'Study inputs'), ('distances', 'Position-by-position distances'),
                 ('model', 'Model and equations'), ('alignments', 'Alignment calculations'),
                 ('limitations', 'Interpretation and limitations'), ('reproducibility', 'Reproducibility')]
     parts.append('<nav aria-label="Report contents"><strong>Report contents</strong><ul>')
@@ -78,18 +78,22 @@ code{overflow-wrap:anywhere;font-size:12px}p,li{overflow-wrap:anywhere}.note{bor
             parts.append('<p>Dataset-linked identities verified; chord accuracy not independently audio-validated.</p>')
         else:
             parts.append('<p>Example or user-supplied progression; no verified song-source attribution attached.</p>')
-    parts.append('<h2 id="distances" tabindex="-1">Pairwise distances</h2><p>Rows are reference progressions; columns are candidates. Indices refer to the inputs above. Lower is closer. Scores may differ by direction when optimal paths tie.</p>')
+    parts.append('<h2 id="distances" tabindex="-1">Position-by-position distances</h2><p>Rows are reference progressions; columns are candidates. Indices refer to the inputs above. Lower is closer. Chords are compared at matching positions after the selected transposition.</p>')
     parts.append(table(['Reference / candidate']+list(range(1,len(study['songs'])+1)),
                        [[i+1]+[f'{v:.6f}' if i != j else '—' for j,v in enumerate(row)] for i,row in enumerate(study['distances'])]))
     parts.append('<p>Shared triads in the first input’s common frame: '+e(', '.join(study['summary']['shared_chords']) or 'none')+'. Mean directed cost: '+f'{study["summary"]["mean_distance"]:.6f}.</p>')
     parts.append('''<h2 id="model" tabindex="-1">Model and equations</h2><p>Pitch classes live in ℤ₁₂. Major triads are {r,r+4,r+7}; minor triads are {r,r+3,r+7}, modulo 12. The graph has 24 triad vertices and 36 undirected P/L/R edges.</p>
 <p>d<sub>G</sub>(a,b) is shortest-path edge count. c(i,j)=d<sub>G</sub>(aᵢ,Tₖ(bⱼ)).</p>
-<p>D(i,j)=c(i,j)+min{D(i−1,j),D(i,j−1),D(i−1,j−1)}. D(0,0)=0; positive-index boundary cells D(i,0) and D(0,j) are infinite.</p>
-<p>The engine minimizes total path cost, then divides by its chosen path length. Across-key mode selects the transposition with lowest resulting average. Similarity=1/(1+distance), a structural score, not a probability.</p>''')
+<p>Compare c(i,i) at matching positions only. Distance = sum of c(i,i) divided by the number of chords. Equal lengths are required.</p>
+<p>Across-key mode selects the transposition with lowest average distance. Trajectory similarity=1/(1+distance). Weighted similarity = 0.40 × chord content + 0.30 × transformation sequence + 0.20 × trajectory + 0.10 × compactness. These are structural scores, not probabilities.</p>''')
     parts.append(table(['Operation','Major (r,+) →','Minor (r,−) →'],[['P','(r,−)','(r,+)'],['L','(r+4,−)','(r+8,+)'],['R','(r+9,−)','(r+3,+)']]))
     parts.append('<h2 id="alignments" tabindex="-1">Alignment calculations</h2>')
     for pair in study['comparisons']:
         parts.append(f'<h3 id="pair-{pair["reference"]+1}-{pair["candidate"]+1}" tabindex="-1">Input {pair["reference"]+1} → input {pair["candidate"]+1}</h3><p>Candidate transposition: +{pair["shift"]} semitones. Distance = {pair["total_cost"]}/{pair["path_length"]} = {pair["distance"]:.6f}. Similarity = {pair["similarity"]:.6f}.</p>')
+        parts.append('<p>Weighted similarity: '+f'{pair["weighted_similarity"]:.6f}'+'</p>')
+        parts.append(table(['Component', 'Value', 'Weight'],
+                           [[name, f'{pair["components"][name]:.6f}', weight] for name, weight in
+                            [('chord_content', '40%'), ('transformation', '30%'), ('trajectory', '20%'), ('compactness', '10%')]]))
         parts.append(table(['Reference position','Candidate position','Shortest route','P/L/R moves','Cost'],
                            [[a['i']+1,a['j']+1,' → '.join(a['chords']),' → '.join(a['operations']) or 'same triad',a['distance']] for a in pair['alignment']]))
     parts.append('<h2 id="limitations" tabindex="-1">Interpretation and limitations</h2><ul>'+''.join('<li>'+e(x)+'</li>' for x in study['limitations'])+'</ul>')

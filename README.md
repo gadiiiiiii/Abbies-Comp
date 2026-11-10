@@ -1,106 +1,82 @@
 # Tonnetz Explorer
 
-A local music app for comparing chord progressions with the Tonnetz P/L/R graph
-and dynamic time warping. The explorer uses a glass interface and an interactive
-hexagonal chord map with synthesized audio previews.
+A local chord explorer and comparison lab with an interactive hexagonal Tonnetz
+map, synthesized playback, weighted similarity scores, and reproducible exports.
 
-Requires Python 3. No third-party Python packages are needed.
+## Run locally
 
-## Local use and privacy
-
-This is a local desktop browser app. The server listens only on `127.0.0.1`
-and accepts requests using its local address. Keep it on your own device;
-it is not designed as a public or shared web server.
-
-Custom song entries are stored in your browser. Downloaded studies and reports
-include the titles and chords you enter, so review those files before sharing.
-The repository contains example progressions and attributed catalog excerpts,
-not your browser's saved entries. Catalog data retains the source licensing and
-attribution described in [CATALOG_SOURCES.md](CATALOG_SOURCES.md).
-
-## Run
+Requires Python 3; no third-party Python packages are needed.
 
 ```powershell
 python app.py --explore
 ```
 
-Open the explorer at http://127.0.0.1:8765/explore. On Windows, you can also
-double-click **Open Tonnetz Explorer.cmd**. Keep the server running while using it.
+Open http://127.0.0.1:8765/explore, or double-click **Open Tonnetz Explorer.cmd**
+on Windows. The study lab is at http://127.0.0.1:8765/. Keep the server running.
+Add `--no-browser` to start without opening a browser.
 
-## Tonnetz Lab
+## Scoring model
 
-For the redesigned single-progression UI, visit http://127.0.0.1:8765/explore
-while the server is running, or double-click **Open Tonnetz Explorer.cmd** to
-start it. It includes custom chord entry, eight examples, the real 24-triad
-P/L/R graph, five ranked harmonic matches, complete alignment details, and
-synthesized triad previews. No external fonts, assets, or packages are needed.
-The study lab remains at `/`.
+`tonnetz.py` uses the user-supplied weighted prototype, with compatibility aliases
+for existing browser imports. This intentionally replaces DTW and changes rankings.
 
-Run `python app.py` or `Open Mixtape.cmd`, then visit http://127.0.0.1:8765.
-Select 2–5 example progressions or add titled songs with known major/minor chord sequences.
-The report shows shared triads, real P/L/R graph paths, directed pairwise DTW costs,
-local/cumulative alignment grids and the underlying formulas. The original Python
-engine is unchanged; the previous single-progression interface is at `/explore`.
-User-added catalog entries are saved only in this browser’s local storage.
-The app does not extract chords from audio or connect to a streaming playlist.
+- Major/minor triads form a 24-chord P/L/R graph. Breadth-first search finds chord
+  distances as the shortest number of transformations.
+- Progressions must have **the same number of chords**. Compare matching positions,
+  without warping, padding, truncation, or repeated alignment positions.
+- Across-key mode chooses the first of 12 transpositions with the lowest average
+  position-by-position distance. It does not optimize the weighted score.
+- Recommendations rank by **40% chord content + 30% transformation sequence +
+  20% trajectory + 10% compactness**, descending with stable ties.
 
-Run `python -m unittest discover -s tests -v` to verify the engine and APIs.
+Chord content is set Jaccard similarity. Transformation similarity is one minus
+normalized Hamming distance between direct P/L/R-label sequences. Non-neighbor
+transitions share a dash label, exactly as in the supplied code. Trajectory is
+`1 / (1 + average distance)`. Compactness is `1 / (1 + absolute difference between
+average step distances)`. UI details and readable reports show all four components.
+Scores describe harmonic structure, not a probability of liking a song.
 
----
+All eight examples have four chords. Other lengths can be entered and played;
+Explore shows no matches when no example has that chord count. Use Study to compare
+2–5 custom or catalog progressions of the same length. The two attributed catalog
+excerpts have different lengths and cannot be directly compared with each other
+under this model; they are never silently cropped.
 
-# Mixtape
+## Studies and reports
 
-Double-click **Open Mixtape.cmd** to start the app and open Chrome. Keep the server window open while using it. Python 3 is required; no additional packages are needed.
-
-Pick a sample progression or enter major/minor chords such as `C Am F G`. Listen to synthesized chord previews and explore harmonic matches. The sample database contains eight example progressions, not recorded songs. Similarity describes chord structure, not overall musical taste.
-
-The original engine is preserved in `tonnetz.py`. The web interface also corrects the display of transposed alignments by showing chords in the target key.
-
-The current visualization shows four colored chord networks on a light plotting surface. Larger nodes mark progression chords. Solid edges are P/L/R moves; faint edges connect chords two moves apart. Shape is illustrative, not a distance scale. Click or keyboard-activate a node to hear it. Playback highlights follow the audio clock; reduced-motion preferences are respected.
-
-Expand **See chord connections** on a match to inspect exact aligned chords, distances and P/L/R routes. These are computed by the engine, including multi-step transitions. Similarity is a mathematical score, not a probability of liking a song.
-
-Run `python -m unittest discover -s tests -v` to verify the original engine rankings and the explanation/API behavior. See `UPGRADE_PLAN.md` for staged work and `RESEARCH_REVIEW.md` for the research assessment.
-
-
-## Save and verify a study
-
-Use **Download study JSON** in a completed report. It includes the selected titles,
-chord sequences, key-comparison option, all calculations, limitations, and code/input
-fingerprints. Keep the corresponding project source files with academic submissions.
-
-From this project directory run:
+Custom entries stay in browser local storage. Download study JSON for inputs,
+calculations, source fingerprints and provenance, or a readable HTML report to
+read/print offline. Downloads include entered titles/chords; review before sharing.
+The app does not extract chords from audio or connect to streaming accounts.
 
 ```powershell
 python replay_study.py "C:/path/to/tonnetz-study-file.json"
 ```
 
-Exit 0 means inputs, source fingerprints and recomputed report match. Exit 1 means
-one or more differ; exit 2 means the file cannot be validated. An export timestamp
-is ignored in comparisons. Fingerprints do not prove authorship or authenticity.
-Use **Open a saved study** in the sidebar to select an exported JSON file (up to 2 MB).
-The local server validates inputs and recalculates the report, showing any differences
-in saved results or source fingerprints. Invalid files leave your selection intact.
-Imported custom entries remain in the current session; keep the JSON file to reopen them.
+Imports validate inputs and recalculate with the current engine. Old DTW exports
+with equal-length inputs can be reopened, with changed scores and source hashes
+reported. Unequal-length studies are rejected with a clear message. Fingerprints
+support reproducibility, not authenticity.
 
+Catalog excerpts retain original symbols, reductions, attribution and source
+licensing; see [CATALOG_SOURCES.md](CATALOG_SOURCES.md). They are short excerpts,
+not independently audio-verified full-song analyses.
 
-Graph keyboard controls: Tab enters/leaves a panel; arrows browse triads; Home/End
-jump to endpoints. P, L and R follow the corresponding graph edge. Enter or Space
-inspects the current vertex. Each panel remembers its current Tab stop.
+## Local use and privacy
 
+The server binds only to `127.0.0.1`, checks local Host/Origin values, and serves
+an explicit list of app files. Keep it on your own device; it is not designed as
+a public/shared web server. Browser-saved entries and downloaded studies are not
+part of this repository.
 
-The playlist now includes two attributed Chordonomicon verse excerpts alongside
-examples. Open Song sources & simplifications for original symbols, reductions,
-license and source links. Curated study exports include this provenance and can be
-verified by replay_study.py. These excerpts are not full-song/audio analyses.
+## Verification
 
+```powershell
+python -m unittest discover -s tests -v
+node tests/analysis_request_test.cjs
+```
 
-Use **Download readable report** for an offline HTML companion to the study JSON.
-It includes the selected chords, equations, directed comparison scores, complete
-alignment routes, source attribution and limitations. Open it in Chrome to read
-or print it. Keep the JSON and project sources for independent replay; the HTML
-is a presentation of the calculations, not the replay input.
-
-Readable reports also embed each input’s colored triad graph and a text table of
-its shortest transition routes. Graph coordinates are illustrative; path costs
-count P/L/R edges. No network connection is needed to render these SVG figures.
+Tests cover weighted rankings, equal-length validation, P/L/R properties, API
+protections, explanations, provenance, replay and escaped HTML. Historical notes
+in UPGRADE_PLAN.md and RESEARCH_REVIEW.md describe earlier versions; this README
+documents current scoring.

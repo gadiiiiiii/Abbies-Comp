@@ -1,3 +1,5 @@
+> Historical notes: the current engine uses the uploaded equal-length, four-weight model. See README.md for current scoring.
+
 # Tooling research review
 
 Reviewed 7 October 2026 against the current app and primary documentation.

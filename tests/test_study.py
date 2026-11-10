@@ -41,14 +41,21 @@ class StudyTests(unittest.TestCase):
             self.assertEqual(pair['cumulative'][-1][-1], pair['total_cost'])
             self.assertEqual(pair['total_cost']/pair['path_length'], distance)
 
-    def test_same_key_and_unequal_lengths(self):
-        songs = [Song.from_text('A', 'C C Am'), Song.from_text('B', 'Am')]
+    def test_same_key_and_equal_lengths(self):
+        songs = [Song.from_text('A', 'C C Am'), Song.from_text('B', 'Am Am Am')]
         data = study_data(self.engine, songs, False)
         pair = data['comparisons'][0]
         self.assertEqual(pair['shift'], 0)
         self.assertEqual(pair['total_cost'], 2)
         self.assertAlmostEqual(pair['distance'], 2/3)
         self.assertEqual(pair['path_length'], 3)
+
+    def test_unequal_lengths_are_rejected(self):
+        with self.assertRaisesRegex(ValueError, 'same number'):
+            parse_study({'songs': [{'title': 'A', 'progression': 'C Am'},
+                                   {'title': 'B', 'progression': 'C'}]})
+        with self.assertRaisesRegex(ValueError, 'same number'):
+            study_data(self.engine, [SAMPLE_SONGS[0], Song.from_text('Short', 'C')])
 
     def test_selection_validation(self):
         good = {'title': 'A', 'progression': 'C Am'}

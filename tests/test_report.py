@@ -24,7 +24,7 @@ class ReportTests(unittest.TestCase):
 
     def test_report_escapes_input_and_contains_all_alignment_costs(self):
         study = study_data(TonnetzRecommender(SAMPLE_SONGS),
-                           [Song.from_text('<script>alert(1)</script>', 'C Am'), SAMPLE_SONGS[1]])
+                           [Song.from_text('<script>alert(1)</script>', 'C Am F G'), SAMPLE_SONGS[1]])
         report = render_report(study)
         self.assertNotIn('<script>', report)
         self.assertIn('&lt;script&gt;', report)
@@ -34,8 +34,10 @@ class ReportTests(unittest.TestCase):
         self.assertIn('does not establish why', report)
 
     def test_report_retains_attribution_and_reduction_disclosures(self):
-        inputs = {'songs': [{'catalog_id': s['id'], 'title': s['title']+' — '+s['artist'],
-                             'progression': ' '.join(s['chords'])} for s in catalog_songs()]}
+        source = catalog_songs()[0]
+        inputs = {'songs': [{'catalog_id': source['id'], 'title': source['title']+' — '+source['artist'],
+                             'progression': ' '.join(source['chords'])},
+                            {'title': 'Comparison', 'progression': ' '.join(source['chords'])}]}
         songs, mode = parse_study(inputs)
         report = render_report(study_data(TonnetzRecommender(SAMPLE_SONGS), songs, mode))
         self.assertIn('CC-BY-NC-4.0', report)

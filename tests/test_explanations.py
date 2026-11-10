@@ -25,6 +25,22 @@ class ExplanationTests(unittest.TestCase):
             degrees[target['id']] += 1
         self.assertEqual(set(degrees.values()), {3})
 
+    def test_weighted_scores_and_example_length_filter(self):
+        engine = TonnetzRecommender(SAMPLE_SONGS)
+        data = recommendation_data(engine, SAMPLE_SONGS[1])
+        # The supplied weighted model ranks F first; DTW previously ranked A.
+        self.assertEqual(data['results'][0]['title'], 'Song F')
+        self.assertAlmostEqual(data['results'][0]['weighted_similarity'], .67)
+        for result in data['results']:
+            c = result['components']
+            self.assertAlmostEqual(result['weighted_similarity'],
+                                   .4*c['chord_content'] + .3*c['transformation'] +
+                                   .2*c['trajectory'] + .1*c['compactness'])
+        short = recommendation_data(engine, Song.from_text('Short', 'C Am'))
+        self.assertEqual(short['results'], [])
+        self.assertEqual(short['target']['chords'], ['C', 'Am'])
+        self.assertIn('4 chords', short['message'])
+
     def test_displayed_paths_and_costs_explain_engine_results(self):
         engine = TonnetzRecommender(SAMPLE_SONGS)
         for transpose in [False, True]:
@@ -102,7 +118,7 @@ class ApiTests(unittest.TestCase):
                              {'Content-Type': 'application/json'}), timeout=5) as response:
             result = json.load(response)
         self.assertFalse(result['verification']['results_match'])
-        self.assertEqual(result['study']['distances'][0][1], 0.4)
+        self.assertEqual(result['study']['distances'][0][1], 0.5)
         with self.assertRaises(HTTPError) as raised:
             urlopen(Request(self.base + '/api/import-study', b'{}',
                             {'Content-Type': 'application/json'}), timeout=5)
