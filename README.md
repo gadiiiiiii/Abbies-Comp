@@ -6,6 +6,20 @@ hexagonal chord map with synthesized audio previews.
 
 Requires Python 3. No third-party Python packages are needed.
 
+## Local use and privacy
+
+This is a local desktop browser app. The server listens only on `127.0.0.1`
+and accepts requests using its local address. Keep it on your own device;
+it is not designed as a public or shared web server.
+
+Custom song entries are stored in your browser. Downloaded studies and reports
+include the titles and chords you enter, so review those files before sharing.
+The repository contains example progressions and attributed catalog excerpts,
+not your browser's saved entries. Catalog data retains the source licensing and
+attribution described in [CATALOG_SOURCES.md](CATALOG_SOURCES.md).
+
+## Run
+
 ```powershell
 python app.py --explore
 ```

@@ -117,6 +117,35 @@ class ApiTests(unittest.TestCase):
             self.assertEqual(raised.exception.code, 400)
             self.assertTrue(json.load(raised.exception)["error"])
 
+    def test_local_browser_boundary(self):
+        requests = [
+            (Request(self.base + '/api/songs', headers={'Host': 'attacker.example'}), 403),
+            (Request(self.base + '/api/songs', headers={'Origin': 'https://attacker.example'}), 403),
+            (Request(self.base + '/api/recommend', b'{"progression":"C"}',
+                     {'Content-Type': 'text/plain'}), 415),
+            (Request(self.base + '/api/recommend', b'{"progression":"C"}',
+                     {'Content-Type': 'application/json', 'Transfer-Encoding': 'chunked'}), 400),
+        ]
+        for request, status in requests:
+            with self.subTest(status=status, headers=request.headers):
+                with self.assertRaises(HTTPError) as raised:
+                    urlopen(request, timeout=5)
+                self.assertEqual(raised.exception.code, status)
+        for origin in [self.base, self.base.replace('127.0.0.1', 'localhost')]:
+            with urlopen(Request(self.base + '/api/recommend', b'{"progression":"C"}',
+                                 {'Content-Type': 'application/json', 'Origin': origin}), timeout=5) as response:
+                self.assertEqual(response.status, 200)
+                self.assertEqual(response.headers['X-Content-Type-Options'], 'nosniff')
+
+    def test_nested_json_is_rejected_without_breaking_next_request(self):
+        nested = b'[' * 1500 + b'0' + b']' * 1500
+        with self.assertRaises(HTTPError) as raised:
+            urlopen(Request(self.base + '/api/import-study', nested,
+                            {'Content-Type': 'application/json'}), timeout=5)
+        self.assertEqual(raised.exception.code, 400)
+        with self.post({'progression': 'C Am F G'}) as response:
+            self.assertEqual(response.status, 200)
+
 
 if __name__ == "__main__":
     unittest.main()

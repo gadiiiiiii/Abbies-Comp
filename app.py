@@ -18,16 +18,35 @@ ENGINE = TonnetzRecommender(SAMPLE_SONGS)
 
 
 class Handler(BaseHTTPRequestHandler):
+    timeout = 10
+
+    def local_request(self):
+        allowed_hosts = {f"127.0.0.1:{self.server.server_port}",
+                         f"localhost:{self.server.server_port}"}
+        if self.headers.get_all("Host", []) not in [[host] for host in allowed_hosts]:
+            self.reply(403, {"error": "Use the local app address."})
+            return False
+        origin = self.headers.get("Origin")
+        if origin is not None and origin not in {f"http://{host}" for host in allowed_hosts}:
+            self.reply(403, {"error": "Requests must come from the local app."})
+            return False
+        return True
+
     def reply(self, status, data, mime="application/json; charset=utf-8"):
         body = data if isinstance(data, bytes) else json.dumps(data).encode()
         self.send_response(status)
         self.send_header("Content-Type", mime)
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Referrer-Policy", "no-referrer")
+        self.send_header("X-Frame-Options", "DENY")
         self.end_headers()
         self.wfile.write(body)
 
     def do_GET(self):
+        if not self.local_request():
+            return
         if self.path == "/":
             self.reply(200, (ROOT / "lab.html").read_bytes(), "text/html; charset=utf-8")
         elif self.path == "/api/songs":
@@ -43,8 +62,16 @@ class Handler(BaseHTTPRequestHandler):
             self.reply(404, {"error": "Page not found"})
 
     def do_POST(self):
+        if not self.local_request():
+            return
         if self.path not in ("/api/recommend", "/api/analyze", "/api/import-study", "/api/report"):
             self.reply(404, {"error": "Page not found"})
+            return
+        if self.headers.get("Transfer-Encoding") or len(self.headers.get_all("Content-Length", [])) != 1:
+            self.reply(400, {"error": "Send one Content-Length and no Transfer-Encoding."})
+            return
+        if self.headers.get_content_type() != "application/json":
+            self.reply(415, {"error": "Send application/json."})
             return
         try:
             length = int(self.headers.get("Content-Length", "0"))
@@ -78,6 +105,8 @@ class Handler(BaseHTTPRequestHandler):
             if not isinstance(invariant, bool):
                 raise ValueError("The any-key option must be true or false.")
             self.reply(200, recommendation_data(ENGINE, target, invariant))
+        except RecursionError:
+            self.reply(400, {"error": "Study JSON is too deeply nested."})
         except (ValueError, TypeError, AttributeError) as exc:
             self.reply(400, {"error": str(exc)})
 
