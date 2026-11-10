@@ -1,3 +1,5 @@
+> Current app: catalog files and import tools are offline developer resources. The explorer no longer loads the catalog or exposes Study endpoints. Integration notes below are historical.
+
 Update: the two prepared excerpts are now integrated into /api/catalog and the lab UI.
 Source disclosures and exported study provenance are implemented. Historical stage
 notes below describe preparation.

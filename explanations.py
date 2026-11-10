@@ -45,9 +45,11 @@ def score_components(graph, reference, candidate):
 def recommendation_data(engine, target, transpose=True):
     # The uploaded algorithm compares equal-length progressions only.
     compatible = [song for song in engine.songs if len(song.chords) == len(target.chords)]
-    engine = TonnetzRecommender(compatible)
+    if compatible and len(compatible) != len(engine.songs):
+        engine = TonnetzRecommender(compatible)
     results = []
-    for result in engine.recommend(target, top_k=8, transpose_invariant=transpose):
+    matches = engine.recommend(target, top_k=8, transpose_invariant=transpose) if compatible else []
+    for result in matches:
         song = result["song"]
         aligned = Song(song.title, transpose_progression(song.chords, result["shift"]))
         pairs = [{"target_index": i, "candidate_index": j,
@@ -72,4 +74,4 @@ def recommendation_data(engine, target, transpose=True):
                        "30% transformation sequence, 20% trajectory and 10% compactness. "
                        "Choose transposition by lowest average P/L/R distance. Not a probability.",
             "message": ("" if results else "No example has this chord count. Examples contain 4 chords. "
-                        "Use Study to compare your own equal-length progressions.")}
+                        "Enter 4 chords to compare with the examples. You can still play this progression.")}

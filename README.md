@@ -1,18 +1,19 @@
 # Tonnetz Explorer
 
-A local chord explorer and comparison lab with an interactive hexagonal Tonnetz
-map, synthesized playback, weighted similarity scores, and reproducible exports.
+A local chord explorer with an interactive hexagonal Tonnetz map, synthesized
+playback and weighted harmonic matches. The app has one explorer interface;
+the Study feature, exports and study endpoints have been removed.
 
 ## Run locally
 
 Requires Python 3; no third-party Python packages are needed.
 
 ```powershell
-python app.py --explore
+python app.py
 ```
 
-Open http://127.0.0.1:8765/explore, or double-click **Open Tonnetz Explorer.cmd**
-on Windows. The study lab is at http://127.0.0.1:8765/. Keep the server running.
+Open http://127.0.0.1:8765, or double-click **Open Tonnetz Explorer.cmd** on
+Windows. The previous `/explore` address still works. Keep the server running.
 Add `--no-browser` to start without opening a browser.
 
 ## Scoring model
@@ -33,50 +34,44 @@ Chord content is set Jaccard similarity. Transformation similarity is one minus
 normalized Hamming distance between direct P/L/R-label sequences. Non-neighbor
 transitions share a dash label, exactly as in the supplied code. Trajectory is
 `1 / (1 + average distance)`. Compactness is `1 / (1 + absolute difference between
-average step distances)`. UI details and readable reports show all four components.
+average step distances)`. Expand Details on a match to see all four components.
 Scores describe harmonic structure, not a probability of liking a song.
 
 All eight examples have four chords. Other lengths can be entered and played;
-Explore shows no matches when no example has that chord count. Use Study to compare
-2–5 custom or catalog progressions of the same length. The two attributed catalog
-excerpts have different lengths and cannot be directly compared with each other
-under this model; they are never silently cropped.
+they show no matches when no example has that chord count. Progressions are never
+silently padded or cropped. The app does not extract chords from audio or connect
+to streaming accounts. Examples are chord sequences, not recordings.
 
-## Studies and reports
+## Performance
 
-Custom entries stay in browser local storage. Download study JSON for inputs,
-calculations, source fingerprints and provenance, or a readable HTML report to
-read/print offline. Downloads include entered titles/chords; review before sharing.
-The app does not extract chords from audio or connect to streaming accounts.
+The graph is built once and updated in place. Match details are created only when
+opened. Playback wakes at chord boundaries rather than polling every frame, and
+suspends its audio context when idle. Request cancellation prevents old results
+from replacing newer input. Repeated comparisons reuse bounded client/server
+caches, and pure graph distances are cached without changing the scoring rules.
+Static assets support ETag revalidation while refreshing after file edits.
+The glass background is stationary to avoid continuous repainting.
 
-```powershell
-python replay_study.py "C:/path/to/tonnetz-study-file.json"
-```
-
-Imports validate inputs and recalculate with the current engine. Old DTW exports
-with equal-length inputs can be reopened, with changed scores and source hashes
-reported. Unequal-length studies are rejected with a clear message. Fingerprints
-support reproducibility, not authenticity.
-
-Catalog excerpts retain original symbols, reductions, attribution and source
-licensing; see [CATALOG_SOURCES.md](CATALOG_SOURCES.md). They are short excerpts,
-not independently audio-verified full-song analyses.
+The attributed catalog data and import tooling remain as offline developer
+resources; they are not loaded by the explorer. Source licensing and attribution
+are documented in [CATALOG_SOURCES.md](CATALOG_SOURCES.md).
 
 ## Local use and privacy
 
 The server binds only to `127.0.0.1`, checks local Host/Origin values, and serves
 an explicit list of app files. Keep it on your own device; it is not designed as
-a public/shared web server. Browser-saved entries and downloaded studies are not
-part of this repository.
+a public/shared web server. Chord entries are kept in memory for the current page. No accounts, telemetry,
+or saved-study browser storage are used by the explorer.
 
 ## Verification
 
 ```powershell
 python -m unittest discover -s tests -v
-node tests/analysis_request_test.cjs
+node tests/explorer_request_test.cjs
 ```
 
 Tests cover weighted rankings, equal-length validation, P/L/R properties, API
-protections, explanations, provenance, replay and escaped HTML. Historical notes
+protections, explanations, retired Study routes, static revalidation, immutable
+cached responses, request cancellation and stale-response handling. Historical notes
 in UPGRADE_PLAN.md and RESEARCH_REVIEW.md describe earlier versions; this README
 documents current scoring.

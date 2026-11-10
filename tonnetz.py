@@ -1,4 +1,5 @@
 from collections import deque
+from functools import lru_cache
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Sequence, Tuple
 #Here we are assigning integer values to our pitches, creating our pitch class
@@ -75,6 +76,7 @@ class Tonnetzchordgraph:
                 neighbor = transform(chord, op)
                 self.adjacency[chord][neighbor] = op
 #Calculating the shortest distance between two chords/triads using Breadth-first search algorithm
+    @lru_cache(maxsize=576)
     def distance(self, start: Chord, goal: Chord) -> int:
         if start == goal:
             return 0

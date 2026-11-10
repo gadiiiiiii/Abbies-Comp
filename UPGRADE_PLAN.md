@@ -1,3 +1,5 @@
+> Current app: explorer only. Study, its exports and HTTP endpoints are removed. The uploaded 40/30/20/10 weighted scoring remains active; see README.md.
+
 > Historical notes: the current engine uses the uploaded equal-length, four-weight model. See README.md for current scoring.
 
 # Mixtape staged upgrades
